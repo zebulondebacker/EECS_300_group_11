@@ -42,7 +42,7 @@
  * pin 1 (Interrupt) of the VL53L3CX satellite connected to pin A2 of the Nucleo board 
  * pin 2 (SCL_I) of the VL53L3CX satellite connected to pin D15 (SCL) of the Nucleo board with a Pull-Up resistor of 4.7 KOhm
  * pin 3 (XSDN_I) of the VL53L3CX satellite connected to pin A1 of the Nucleo board
- * pin 4 (SDA_I) of the VL53L3CX satellite connected to pin D14 (SDA) of the Nucleo board with a Pull-Up resistor of 4.7 KOhm
+ * pin 4 (SDA_I) of the VL53L3CX satellite connected to pin 22 (SDA) of the Nucleo board with a Pull-Up resistor of 4.7 KOhm
  * pin 5 (VDD) of the VL53L3CX satellite connected to 3V3 pin of the Nucleo board
  * pin 6 (GND) of the VL53L3CX satellite connected to GND of the Nucleo board
  * pins 7, 8, 9 and 10 are not connected.
@@ -60,14 +60,17 @@
 
 #define DEV_I2C Wire
 #define SerialPort Serial
-
+#define SDA_pin 22
+#define SCL_pin 23
+#define XSHUT_pin 21
+#define GPIO_pin 19 
 #ifndef LED_BUILTIN
-#define LED_BUILTIN 13
+#define LED_BUILTIN 2
 #endif
 #define LedPin LED_BUILTIN
 
 // Components.
-VL53LX sensor_vl53lx_sat(&DEV_I2C, A1);
+VL53LX sensor_vl53lx_sat(&DEV_I2C, XSHUT_pin);
 
 
 /* Setup ---------------------------------------------------------------------*/
@@ -82,7 +85,7 @@ void setup()
    SerialPort.println("Starting...");
 
    // Initialize I2C bus.
-   DEV_I2C.begin();
+   DEV_I2C.begin(SDA_pin,SCL_pin); // Pin 22 to SDA, Pin 23 to SCL
 
    // Configure VL53LX satellite component.
    sensor_vl53lx_sat.begin();
