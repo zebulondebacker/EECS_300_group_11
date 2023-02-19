@@ -39,12 +39,12 @@
  */
 /*
  * To use this sketch you need to connect the VL53L3CX satellite sensor directly to the Nucleo board with wires in this way:
- * pin 1 (Interrupt) of the VL53L3CX satellite connected to pin A2 of the Nucleo board 
- * pin 2 (SCL_I) of the VL53L3CX satellite connected to pin D15 (SCL) of the Nucleo board with a Pull-Up resistor of 4.7 KOhm
- * pin 3 (XSDN_I) of the VL53L3CX satellite connected to pin A1 of the Nucleo board
- * pin 4 (SDA_I) of the VL53L3CX satellite connected to pin 22 (SDA) of the Nucleo board with a Pull-Up resistor of 4.7 KOhm
- * pin 5 (VDD) of the VL53L3CX satellite connected to 3V3 pin of the Nucleo board
- * pin 6 (GND) of the VL53L3CX satellite connected to GND of the Nucleo board
+ * pin 1 (Interrupt) of the VL53L3CX satellite connected to pin 19 of the ESP32 board 
+ * pin 2 (SCL_I) of the VL53L3CX satellite connected to pin 23 (SCL) of the ESP32 board with a Pull-Up resistor of 4.7 KOhm
+ * pin 3 (XSDN_I) of the VL53L3CX satellite connected to pin A1 of the ESP32 board
+ * pin 4 (SDA_I) of the VL53L3CX satellite connected to pin 22 (SDA) of the ESP32 board with a Pull-Up resistor of 4.7 KOhm
+ * pin 5 (VDD) of the VL53L3CX satellite connected to 3V3 pin of the ESP32 board
+ * pin 6 (GND) of the VL53L3CX satellite connected to GND of the ESP32 board
  * pins 7, 8, 9 and 10 are not connected.
  */
 /* Includes ------------------------------------------------------------------*/
@@ -60,9 +60,9 @@
 
 #define DEV_I2C Wire
 #define SerialPort Serial
-#define SDA_pin 22
-#define SCL_pin 23
-#define XSHUT_pin 21
+#define SDA_pin 21
+#define SCL_pin 22
+#define XSHUT_pin 18
 #define GPIO_pin 19 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -85,7 +85,7 @@ void setup()
    SerialPort.println("Starting...");
 
    // Initialize I2C bus.
-   DEV_I2C.begin(SDA_pin,SCL_pin); // Pin 22 to SDA, Pin 23 to SCL
+   DEV_I2C.begin(SDA_pin,SCL_pin); // Pin 21 to SDA, Pin 22 to SCL
 
    // Configure VL53LX satellite component.
    sensor_vl53lx_sat.begin();
@@ -96,6 +96,9 @@ void setup()
    //Initialize VL53LX satellite component.
    sensor_vl53lx_sat.InitSensor(0x12);
 
+  //Set the distance mode. Options are short, medium, and long.
+   sensor_vl53lx_sat.VL53LX_SetDistanceMode(VL53LX_DISTANCEMODE_MEDIUM);
+   
    // Start Measurements
    sensor_vl53lx_sat.VL53LX_StartMeasurement();
 }
@@ -126,16 +129,13 @@ void loop()
       for(j=0;j<no_of_object_found;j++)
       {
          if(j!=0)SerialPort.print("\r\n                               ");
+         if(pMultiRangingData->RangeData[j].RangeStatus == 0 || pMultiRangingData->RangeData[j].RangeStatus == 7){
          SerialPort.print("status=");
          SerialPort.print(pMultiRangingData->RangeData[j].RangeStatus);
          SerialPort.print(", D=");
          SerialPort.print(pMultiRangingData->RangeData[j].RangeMilliMeter);
          SerialPort.print("mm");
-         SerialPort.print(", Signal=");
-         SerialPort.print((float)pMultiRangingData->RangeData[j].SignalRateRtnMegaCps/65536.0);
-         SerialPort.print(" Mcps, Ambient=");
-         SerialPort.print((float)pMultiRangingData->RangeData[j].AmbientRateRtnMegaCps/65536.0);
-         SerialPort.print(" Mcps");
+         }
       }
       SerialPort.println("");
       if (status==0)
