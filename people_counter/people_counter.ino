@@ -74,7 +74,13 @@ VL53LX sensor_vl53lx_sat(&DEV_I2C, XSHUT_pin);
 
 
 /* Setup ---------------------------------------------------------------------*/
-
+float curTime = 0;
+float previousTime = 0;
+float velocity = 0;
+double curPosition = 0;
+double prevPosition = 0;
+double avgVelocity = 0;
+int counter = 0;
 void setup()
 {
    // Led.
@@ -125,17 +131,39 @@ void loop()
       status = sensor_vl53lx_sat.VL53LX_GetMultiRangingData(pMultiRangingData);
       no_of_object_found=pMultiRangingData->NumberOfObjectsFound;
       snprintf(report, sizeof(report), "VL53LX Satellite: Count=%d, #Objs=%1d ", pMultiRangingData->StreamCount, no_of_object_found);
-      SerialPort.print(report);
+      //SerialPort.print(report);
       for(j=0;j<no_of_object_found;j++)
       {
          if(j!=0)SerialPort.print("\r\n                               ");
-         if(pMultiRangingData->RangeData[j].RangeStatus == 0 || pMultiRangingData->RangeData[j].RangeStatus == 7){
+         if(pMultiRangingData->RangeData[j].RangeStatus == 0 /*|| pMultiRangingData->RangeData[j].RangeStatus == 7*/){
          SerialPort.print("status=");
          SerialPort.print(pMultiRangingData->RangeData[j].RangeStatus);
-         SerialPort.print(", D=");
-         SerialPort.print(pMultiRangingData->RangeData[j].RangeMilliMeter);
-         SerialPort.print("mm");
+//         SerialPort.print(", D=");
+//         SerialPort.print(pMultiRangingData->RangeData[j].RangeMilliMeter);
+//         SerialPort.print("mm");
+
+       
+        // Calculate velocity
+         previousTime = curTime;
+         curTime = millis();
+         float interval = curTime - previousTime;
+         curPosition = pMultiRangingData->RangeData[j].RangeMilliMeter;
+         velocity = (curPosition - prevPosition) / interval;
+         prevPosition = curPosition;
+         SerialPort.print("     ");
+         SerialPort.print(velocity);
+         SerialPort.print("     ");
+
+         avgVelocity = avgVelocity + velocity;
+         counter++;
+         if(counter == 10) {
+          avgVelocity = avgVelocity / counter;
+          counter =0;
          }
+         
+         }
+
+      
       }
       SerialPort.println("");
       if (status==0)
