@@ -57,6 +57,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define DEV_I2C Wire
 #define SerialPort Serial
@@ -81,6 +82,14 @@ double curPosition = 0;
 double prevPosition = 0;
 double avgVelocity = 0;
 int counter = 0;
+
+float arrNumbers[5] = {0};
+
+int pos = 0;
+float newAvg = 0;
+float sum = 0;
+int len = 5 ;
+  
 void setup()
 {
    // Led.
@@ -136,8 +145,8 @@ void loop()
       {
          if(j!=0)SerialPort.print("\r\n                               ");
          if(pMultiRangingData->RangeData[j].RangeStatus == 0 /*|| pMultiRangingData->RangeData[j].RangeStatus == 7*/){
-         SerialPort.print("status=");
-         SerialPort.print(pMultiRangingData->RangeData[j].RangeStatus);
+//         SerialPort.print("status=");
+//         SerialPort.print(pMultiRangingData->RangeData[j].RangeStatus);
 //         SerialPort.print(", D=");
 //         SerialPort.print(pMultiRangingData->RangeData[j].RangeMilliMeter);
 //         SerialPort.print("mm");
@@ -148,18 +157,25 @@ void loop()
          curTime = millis();
          float interval = curTime - previousTime;
          curPosition = pMultiRangingData->RangeData[j].RangeMilliMeter;
-         velocity = (curPosition - prevPosition) / interval;
-         prevPosition = curPosition;
-         SerialPort.print("     ");
-         SerialPort.print(velocity);
-         SerialPort.print("     ");
-
-         avgVelocity = avgVelocity + velocity;
-         counter++;
-         if(counter == 10) {
-          avgVelocity = avgVelocity / counter;
-          counter =0;
+         velocity = (curPosition - prevPosition)/ interval;
+         if(isinf(velocity)){
+          velocity = 0;
          }
+         prevPosition = curPosition;
+//         SerialPort.print("     ");
+//         SerialPort.print(velocity);
+//         SerialPort.print("     ");
+
+         newAvg = movingAvg(arrNumbers, &sum, pos, len, velocity);
+//         printf("The sum is %d\n", sum);
+//         SerialPort.print("       ");
+//         printf("The new average is %d\n", newAvg);
+         pos++;
+         if (pos >= len){
+          pos = 0;
+         }
+
+
          
          }
 
@@ -173,4 +189,18 @@ void loop()
    }
 
    digitalWrite(LedPin, LOW);
+}
+
+
+// Average velocity function
+
+float movingAvg(float *ptrArrNumbers, float *ptrSum, int pos, int len, float nextNum)
+{
+  //Subtract the oldest number from the prev sum, add the new number
+  *ptrSum = *ptrSum - ptrArrNumbers[pos] + nextNum;
+  SerialPort.print(*ptrSum);
+  //Assign the nextNum to the position in the array
+  ptrArrNumbers[pos] = nextNum;
+  //return the average
+  return *ptrSum / len;
 }
