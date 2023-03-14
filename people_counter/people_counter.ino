@@ -82,13 +82,14 @@ double curPosition = 0;
 double prevPosition = 0;
 double avgVelocity = 0;
 int counter = 0;
+int peopleCounter = 0;
 
 float arrNumbers[5] = {0};
 
 int pos = 0;
 float newAvg = 0;
 float sum = 0;
-int len = 5 ;
+float len = 5.0 ;
   
 void setup()
 {
@@ -157,6 +158,7 @@ void loop()
          curTime = millis();
          float interval = curTime - previousTime;
          curPosition = pMultiRangingData->RangeData[j].RangeMilliMeter;
+         
          velocity = (curPosition - prevPosition)/ interval;
          if(isinf(velocity)){
           velocity = 0;
@@ -167,9 +169,8 @@ void loop()
 //         SerialPort.print("     ");
 
          newAvg = movingAvg(arrNumbers, &sum, pos, len, velocity);
-//         printf("The sum is %d\n", sum);
-//         SerialPort.print("       ");
-//         printf("The new average is %d\n", newAvg);
+
+//         SerialPort.print(newAvg);
          pos++;
          if (pos >= len){
           pos = 0;
@@ -194,13 +195,20 @@ void loop()
 
 // Average velocity function
 
-float movingAvg(float *ptrArrNumbers, float *ptrSum, int pos, int len, float nextNum)
+float movingAvg(float *ptrArrNumbers, float *ptrSum, int pos, float len, float nextNum)
 {
   //Subtract the oldest number from the prev sum, add the new number
   *ptrSum = *ptrSum - ptrArrNumbers[pos] + nextNum;
-  SerialPort.print(*ptrSum);
+  //SerialPort.print(*ptrSum);
   //Assign the nextNum to the position in the array
   ptrArrNumbers[pos] = nextNum;
   //return the average
+  //SerialPort.print(*ptrSum / len);
   return *ptrSum / len;
 }
+
+//int people(double currentPosition, double previousPosition, float averageVel) {
+//  if(abs(currentPosition - previousPosition) > 200) {
+//    if(averageVel > 0.2)
+//  }
+//}
