@@ -85,8 +85,13 @@ int counter = 0;
 int peopleCounter = 0;
 
 float arrNumbers[5] = {0};
+int arrobjects[5] = {0};
+bool no_object_detected;
 
+int sum_of_objects = 0;
 int pos = 0;
+int pos_object = 0;
+float detectForObject = 0;
 float newAvg = 0;
 float sum = 0;
 float len = 5.0 ;
@@ -142,6 +147,13 @@ void loop()
       no_of_object_found=pMultiRangingData->NumberOfObjectsFound;
       snprintf(report, sizeof(report), "VL53LX Satellite: Count=%d, #Objs=%1d ", pMultiRangingData->StreamCount, no_of_object_found);
       //SerialPort.print(report);
+      
+      no_object_detected = detect_no_objects(arrobjects, &sum_of_objects, pos_object, len, no_of_object_found));
+      pos_object++;
+      if (pos_object >= len){
+        pos_object = 0;
+      }
+      
       for(j=0;j<no_of_object_found;j++)
       {
          if(j!=0)SerialPort.print("\r\n                               ");
@@ -159,30 +171,27 @@ void loop()
          float interval = curTime - previousTime;
          curPosition = pMultiRangingData->RangeData[j].RangeMilliMeter;
          
+         //Check if people walked though the door
+         peopleCounter = peopleCounter + people(curPosition, prevPosition, newAvg);
+         //SerialPort.print(peopleCounter);
+          
          velocity = (curPosition - prevPosition)/ interval;
          if(isinf(velocity)){
           velocity = 0;
          }
          prevPosition = curPosition;
-//         SerialPort.print("     ");
-//         SerialPort.print(velocity);
-//         SerialPort.print("     ");
-
          newAvg = movingAvg(arrNumbers, &sum, pos, len, velocity);
-
-//         SerialPort.print(newAvg);
          pos++;
          if (pos >= len){
           pos = 0;
          }
 
-
-         
+         SerialPort.println("");
          }
 
       
       }
-      SerialPort.println("");
+      
       if (status==0)
       {
          status = sensor_vl53lx_sat.VL53LX_ClearInterruptAndStartMeasurement();
@@ -190,9 +199,12 @@ void loop()
    }
 
    digitalWrite(LedPin, LOW);
-}
+} // End of void loop funtion
 
 
+
+// FUNCTION LIST----------------------------------------------------------------------
+//
 // Average velocity function
 
 float movingAvg(float *ptrArrNumbers, float *ptrSum, int pos, float len, float nextNum)
@@ -207,8 +219,33 @@ float movingAvg(float *ptrArrNumbers, float *ptrSum, int pos, float len, float n
   return *ptrSum / len;
 }
 
-//int people(double currentPosition, double previousPosition, float averageVel) {
-//  if(abs(currentPosition - previousPosition) > 200) {
-//    if(averageVel > 0.2)
-//  }
-//}
+// Function to return true if sensor is no longer seeing objects based on
+// last 5 readings for no_of_object_found
+
+bool detect_no_objects(int *ptrArrNumbers, int *ptrSum, int pos, int len, int nextNum)
+{
+  //Subtract the oldest number from the prev sum, add the new number
+  *ptrSum = *ptrSum - ptrArrNumbers[pos] + nextNum;
+  ptrArrNumbers[pos] = nextNum;
+  return (*ptrSum < 1) ;
+}
+
+// People counting function: determines when to consider if a person walked through the door based in sensor tracking a new object
+
+int people(double currentPosition, double previousPosition, float averageVel,) {
+  if(abs(currentPosition - previousPosition) > 300) {
+    if(averageVel > 0.5)
+    {
+      return -1;
+    }
+    else if(averageVel < -0.5)
+    {
+      return 1;
+    }
+    else
+    {
+      return 0;
+    }
+  }
+  return 0;
+}
