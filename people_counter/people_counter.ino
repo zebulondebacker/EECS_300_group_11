@@ -59,6 +59,18 @@
 #include <stdlib.h>
 #include <math.h>
 
+#include "WirelessCommunication.h"
+#include "sharedVariable.h"
+#include "Preferences.h"
+
+void init_non_vol_storage();
+void update_non_vol_count();
+void update_button_count();
+
+volatile uint32_t count = 0;
+volatile shared_uint32 x;
+Preferences nonVol;//used to store the count in nonvolatile memory
+
 #define DEV_I2C Wire
 #define SerialPort Serial
 #define SDA_pin 21
@@ -84,20 +96,29 @@ double avgVelocity = 0;
 int counter = 0;
 int peopleCounter = 0;
 
-float arrNumbers[5] = {0};
-int arrobjects[5] = {0};
-bool no_object_detected;
+float arrNumbers[10] = {0};
 
+int arrobjects[5] = {0};
+bool no_object_detected = 0;
+bool not_repeating = 0;
 int sum_of_objects = 0;
-int pos = 0;
 int pos_object = 0;
 float detectForObject = 0;
+
+int pos = 0;
 float newAvg = 0;
 float sum = 0;
-float len = 5.0 ;
-  
+float len = 10.0 ;
+float len_ob = 5.0;
 void setup()
 {
+
+   // Wireless Comunications
+    init_wifi_task();
+    init_non_vol_count();//initializes nonvolatile memory and retrieves latest count
+    count = 0;
+    INIT_SHARED_VARIABLE(x, count);//init shared variable used to tranfer info to WiFi core
+    
    // Led.
    pinMode(LedPin, OUTPUT);
 
@@ -118,7 +139,7 @@ void setup()
    sensor_vl53lx_sat.InitSensor(0x12);
 
   //Set the distance mode. Options are short, medium, and long.
-   sensor_vl53lx_sat.VL53LX_SetDistanceMode(VL53LX_DISTANCEMODE_MEDIUM);
+   sensor_vl53lx_sat.VL53LX_SetDistanceMode(VL53LX_DISTANCEMODE_SHORT);
    
    // Start Measurements
    sensor_vl53lx_sat.VL53LX_StartMeasurement();
@@ -145,16 +166,28 @@ void loop()
    {
       status = sensor_vl53lx_sat.VL53LX_GetMultiRangingData(pMultiRangingData);
       no_of_object_found=pMultiRangingData->NumberOfObjectsFound;
-      snprintf(report, sizeof(report), "VL53LX Satellite: Count=%d, #Objs=%1d ", pMultiRangingData->StreamCount, no_of_object_found);
-      //SerialPort.print(report);
-      
-      no_object_detected = detect_no_objects(arrobjects, &sum_of_objects, pos_object, len, no_of_object_found));
-      pos_object++;
-      if (pos_object >= len){
-        pos_object = 0;
+      //snprintf(report, sizeof(report), "VL53LX Satellite: Count=%d, #Objs=%1d ", pMultiRangingData->StreamCount, no_of_object_found);
+//      SerialPort.print(report);
+//      SerialPort.println("");
+      //SerialPort.print(newAvg);
+      no_object_detected = detect_no_objects(arrobjects, &sum_of_objects, pos_object, len, no_of_object_found);
+      if(no_object_detected && not_repeating) {
+        not_repeating = 0;
+        count = count + people(curPosition, prevPosition, newAvg, no_object_detected);
+        update_button_count();//update shared variable x (shared with WiFi task)
+        update_non_vol_count();//updates nonvolatile count 
+        
+        SerialPort.print(count);
+//        SerialPort.print("   outside   Average Velocity: ");
+//        SerialPort.print(newAvg);
+        newAvg = 0;
       }
-      
-      for(j=0;j<no_of_object_found;j++)
+       pos_object++;
+       if (pos_object >= len_ob){
+          pos_object = 0;
+       }
+        
+      for(j=0;j<1;j++)
       {
          if(j!=0)SerialPort.print("\r\n                               ");
          if(pMultiRangingData->RangeData[j].RangeStatus == 0 /*|| pMultiRangingData->RangeData[j].RangeStatus == 7*/){
@@ -172,9 +205,14 @@ void loop()
          curPosition = pMultiRangingData->RangeData[j].RangeMilliMeter;
          
          //Check if people walked though the door
-         peopleCounter = peopleCounter + people(curPosition, prevPosition, newAvg);
-         //SerialPort.print(peopleCounter);
-          
+         count = count + people(curPosition, prevPosition, newAvg, no_object_detected);
+         update_button_count();//update shared variable x (shared with WiFi task)
+         update_non_vol_count();//updates nonvolatile count
+         
+         SerialPort.print(count);
+//         SerialPort.print("   Interval: ");
+//         SerialPort.print(interval);
+         not_repeating = 1;
          velocity = (curPosition - prevPosition)/ interval;
          if(isinf(velocity)){
           velocity = 0;
@@ -232,13 +270,13 @@ bool detect_no_objects(int *ptrArrNumbers, int *ptrSum, int pos, int len, int ne
 
 // People counting function: determines when to consider if a person walked through the door based in sensor tracking a new object
 
-int people(double currentPosition, double previousPosition, float averageVel,) {
-  if(abs(currentPosition - previousPosition) > 300) {
-    if(averageVel > 0.5)
+uint32_t people(double currentPosition, double previousPosition, float averageVel, bool zero_objects_detected) {
+  if(abs(currentPosition - previousPosition) > 150 || zero_objects_detected) {
+    if(averageVel > 0.2)
     {
       return -1;
     }
-    else if(averageVel < -0.5)
+    else if(averageVel < -0.2)
     {
       return 1;
     }
@@ -248,4 +286,30 @@ int people(double currentPosition, double previousPosition, float averageVel,) {
     }
   }
   return 0;
+}
+
+
+// Wireless Communication Functions---------------------------------------------------------------------------------
+
+//initializes nonvolatile memory and retrieves latest count
+void init_non_vol_count()
+{
+  nonVol.begin("nonVolData", false);//Create a “storage space” in the flash memory called "nonVolData" in read/write mode
+  count = nonVol.getUInt("count", 0);//attempts to retrieve "count" from nonVolData, sets it 0 if not found
+}
+
+//updates nonvolatile memery with lates value of count
+void update_non_vol_count()
+{
+  nonVol.putUInt("count", count);//write count to nonvolatile memory
+}
+
+//example code that updates a shared variable (which is printed to server)
+//under the hood, this implementation uses a semaphore to arbitrate access to x.value
+void update_button_count()
+{
+  //minimized time spend holding semaphore
+  LOCK_SHARED_VARIABLE(x);
+  x.value = count;
+  UNLOCK_SHARED_VARIABLE(x);   
 }
