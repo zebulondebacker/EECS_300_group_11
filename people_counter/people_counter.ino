@@ -67,7 +67,7 @@ void init_non_vol_storage();
 void update_non_vol_count();
 void update_button_count();
 
-volatile uint32_t count = 0;
+volatile int count = 0;
 volatile shared_uint32 x;
 Preferences nonVol;//used to store the count in nonvolatile memory
 
@@ -105,6 +105,8 @@ int sum_of_objects = 0;
 int pos_object = 0;
 float detectForObject = 0;
 
+int times_without_status_0 = 0;
+
 int pos = 0;
 float newAvg = 0;
 float sum = 0;
@@ -139,7 +141,7 @@ void setup()
    sensor_vl53lx_sat.InitSensor(0x12);
 
   //Set the distance mode. Options are short, medium, and long.
-   sensor_vl53lx_sat.VL53LX_SetDistanceMode(VL53LX_DISTANCEMODE_SHORT);
+   sensor_vl53lx_sat.VL53LX_SetDistanceMode(VL53LX_DISTANCEMODE_MEDIUM);
    
    // Start Measurements
    sensor_vl53lx_sat.VL53LX_StartMeasurement();
@@ -166,26 +168,33 @@ void loop()
    {
       status = sensor_vl53lx_sat.VL53LX_GetMultiRangingData(pMultiRangingData);
       no_of_object_found=pMultiRangingData->NumberOfObjectsFound;
-      //snprintf(report, sizeof(report), "VL53LX Satellite: Count=%d, #Objs=%1d ", pMultiRangingData->StreamCount, no_of_object_found);
-//      SerialPort.print(report);
-//      SerialPort.println("");
-      //SerialPort.print(newAvg);
-      no_object_detected = detect_no_objects(arrobjects, &sum_of_objects, pos_object, len, no_of_object_found);
-      if(no_object_detected && not_repeating) {
+
+      if(times_without_status_0 == 10 && not_repeating) {
         not_repeating = 0;
-        count = count + people(curPosition, prevPosition, newAvg, no_object_detected);
-        update_button_count();//update shared variable x (shared with WiFi task)
-        update_non_vol_count();//updates nonvolatile count 
+        int num_of_zeros_out = 0;
+         //Check if people walked though the door
+         for(int i=0;i<len;i++){
+          if(arrNumbers[i] == 0){
+            num_of_zeros_out++;
+          }
+        }
+        if(num_of_zeros_out < 5){
+         count = count + people(curPosition, prevPosition, newAvg, 1);
+         update_button_count();//update shared variable x (shared with WiFi task)
+         update_non_vol_count();//updates nonvolatile count
+         SerialPort.print("outside loop    ");
+         SerialPort.print(count);
+        }
         
-        SerialPort.print(count);
-//        SerialPort.print("   outside   Average Velocity: ");
-//        SerialPort.print(newAvg);
-        newAvg = 0;
+
+        for(int i=0;i<len;i++){
+          newAvg = movingAvg(arrNumbers, &sum, pos, len, 0);
+          pos++;
+          if (pos >= len){
+            pos = 0;
+          }
+        }
       }
-       pos_object++;
-       if (pos_object >= len_ob){
-          pos_object = 0;
-       }
         
       for(j=0;j<1;j++)
       {
@@ -204,14 +213,20 @@ void loop()
          float interval = curTime - previousTime;
          curPosition = pMultiRangingData->RangeData[j].RangeMilliMeter;
          
+         int num_of_zeros = 0;
          //Check if people walked though the door
+         for(int i=0;i<len;i++){
+          if(arrNumbers[i] == 0){
+            num_of_zeros++;
+          }
+        }
+        if(num_of_zeros < 7){
          count = count + people(curPosition, prevPosition, newAvg, no_object_detected);
          update_button_count();//update shared variable x (shared with WiFi task)
          update_non_vol_count();//updates nonvolatile count
-         
+        }
          SerialPort.print(count);
-//         SerialPort.print("   Interval: ");
-//         SerialPort.print(interval);
+
          not_repeating = 1;
          velocity = (curPosition - prevPosition)/ interval;
          if(isinf(velocity)){
@@ -223,13 +238,16 @@ void loop()
          if (pos >= len){
           pos = 0;
          }
-
+         
+         times_without_status_0 = 0;
          SerialPort.println("");
-         }
+         }// end of if statement that only runs when object with status 0 is detected 
+      }// end of for loop
 
-      
+      times_without_status_0++;
+      if (times_without_status_0 > 10) {
+        times_without_status_0 = 0;
       }
-      
       if (status==0)
       {
          status = sensor_vl53lx_sat.VL53LX_ClearInterruptAndStartMeasurement();
@@ -270,14 +288,16 @@ bool detect_no_objects(int *ptrArrNumbers, int *ptrSum, int pos, int len, int ne
 
 // People counting function: determines when to consider if a person walked through the door based in sensor tracking a new object
 
-uint32_t people(double currentPosition, double previousPosition, float averageVel, bool zero_objects_detected) {
-  if(abs(currentPosition - previousPosition) > 150 || zero_objects_detected) {
-    if(averageVel > 0.2)
+int people(double currentPosition, double previousPosition, float averageVel, bool zero_objects_detected) {
+  if(abs(currentPosition - previousPosition) > 225 || zero_objects_detected) {
+    if(averageVel > 0.3 && count > 0)
     {
+      SerialPort.println(averageVel);
       return -1;
     }
-    else if(averageVel < -0.2)
+    else if(averageVel < -0.3)
     {
+      SerialPort.println(averageVel);
       return 1;
     }
     else
