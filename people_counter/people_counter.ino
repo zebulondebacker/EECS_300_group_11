@@ -75,16 +75,24 @@ Preferences nonVol;//used to store the count in nonvolatile memory
 #define SerialPort Serial
 #define SDA_pin 21
 #define SCL_pin 22
-#define XSHUT_pin 18
-#define GPIO_pin 19 
+#define XSHUT1_pin 18
+#define GPIO1_pin 19 
+
+#define XSHUT2_pin 17
+#define GPIO2_pin 5
+
+#define XSHUT3_pin 4
+#define GPIO3_pin 16
+
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
 #define LedPin LED_BUILTIN
 
 // Components.
-VL53LX sensor_vl53lx_sat(&DEV_I2C, XSHUT_pin);
-
+VL53LX sensor_vl53lx_sat(&DEV_I2C, XSHUT1_pin);
+VL53LX sensor_vl53lx2_sat(&DEV_I2C, XSHUT2_pin);
+VL53LX sensor_vl53lx3_sat(&DEV_I2C, XSHUT3_pin);
 
 /* Setup ---------------------------------------------------------------------*/
 float curTime = 0;
@@ -129,22 +137,30 @@ void setup()
    SerialPort.println("Starting...");
 
    // Initialize I2C bus.
-   DEV_I2C.begin(SDA_pin,SCL_pin); // Pin 21 to SDA, Pin 22 to SCL
+   DEV_I2C.begin();
 
-   // Configure VL53LX satellite component.
+     // Set Addresses
+   digitalWrite(XSHUT1_pin, LOW);
+   digitalWrite(XSHUT2_pin, LOW);
+   digitalWrite(XSHUT3_pin, LOW);
+   delay(10);
+   
+   digitalWrite(XSHUT1_pin, HIGH);
    sensor_vl53lx_sat.begin();
-
-   // Switch off VL53LX satellite component.
-   sensor_vl53lx_sat.VL53LX_Off();
-
-   //Initialize VL53LX satellite component.
    sensor_vl53lx_sat.InitSensor(0x12);
 
-  //Set the distance mode. Options are short, medium, and long.
-   sensor_vl53lx_sat.VL53LX_SetDistanceMode(VL53LX_DISTANCEMODE_MEDIUM);
+   digitalWrite(XSHUT2_pin, HIGH);
+   sensor_vl53lx2_sat.begin();
+   sensor_vl53lx2_sat.InitSensor(0x14);
+
+   digitalWrite(XSHUT3_pin, HIGH);
+   sensor_vl53lx3_sat.begin();
+   sensor_vl53lx3_sat.InitSensor(0x52);
    
    // Start Measurements
    sensor_vl53lx_sat.VL53LX_StartMeasurement();
+   sensor_vl53lx2_sat.VL53LX_StartMeasurement();
+   sensor_vl53lx3_sat.VL53LX_StartMeasurement();
 }
 
 void loop()
@@ -158,7 +174,7 @@ void loop()
 
    do
    {
-      status = sensor_vl53lx_sat.VL53LX_GetMeasurementDataReady(&NewDataReady);
+      status = sensor_vl53lx3_sat.VL53LX_GetMeasurementDataReady(&NewDataReady);
    } while (!NewDataReady);
 
    //Led on
@@ -166,7 +182,7 @@ void loop()
 
    if((!status)&&(NewDataReady!=0))
    {
-      status = sensor_vl53lx_sat.VL53LX_GetMultiRangingData(pMultiRangingData);
+      status = sensor_vl53lx3_sat.VL53LX_GetMultiRangingData(pMultiRangingData);
       no_of_object_found=pMultiRangingData->NumberOfObjectsFound;
 
       if(times_without_status_0 == 10 && not_repeating) {
@@ -250,7 +266,7 @@ void loop()
       }
       if (status==0)
       {
-         status = sensor_vl53lx_sat.VL53LX_ClearInterruptAndStartMeasurement();
+         status = sensor_vl53lx3_sat.VL53LX_ClearInterruptAndStartMeasurement();
       }
    }
 
