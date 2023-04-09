@@ -41,7 +41,7 @@
  * To use this sketch you need to connect the VL53L3CX satellite sensor directly to the Nucleo board with wires in this way:
  * pin 1 (Interrupt) of the VL53L3CX satellite connected to pin 19 of the ESP32 board 
  * pin 2 (SCL_I) of the VL53L3CX satellite connected to pin 23 (SCL) of the ESP32 board with a Pull-Up resistor of 4.7 KOhm
- * pin 3 (XSDN_I) of the VL53L3CX satellite connected to pin A1 of the ESP32 board
+ * pin 3 (XSDN_I) of the VL53L3CX satellite connected to pin 18 of the ESP32 board
  * pin 4 (SDA_I) of the VL53L3CX satellite connected to pin 22 (SDA) of the ESP32 board with a Pull-Up resistor of 4.7 KOhm
  * pin 5 (VDD) of the VL53L3CX satellite connected to 3V3 pin of the ESP32 board
  * pin 6 (GND) of the VL53L3CX satellite connected to GND of the ESP32 board
@@ -104,14 +104,10 @@ double avgVelocity = 0;
 int counter = 0;
 int peopleCounter = 0;
 
-float arrNumbers[10] = {0};
+float arrNumbers[10] = {0}; // Array to hold velocity readings for moving average calculations
 
-int arrobjects[5] = {0};
 bool no_object_detected = 0;
 bool not_repeating = 0;
-int sum_of_objects = 0;
-int pos_object = 0;
-float detectForObject = 0;
 
 int times_without_status_0 = 0;
 
@@ -120,6 +116,7 @@ float newAvg = 0;
 float sum = 0;
 float len = 10.0 ;
 float len_ob = 5.0;
+
 void setup()
 {
 
@@ -139,7 +136,7 @@ void setup()
    // Initialize I2C bus.
    DEV_I2C.begin();
 
-     // Set Addresses
+   // Set Addresses
    digitalWrite(XSHUT1_pin, LOW);
    digitalWrite(XSHUT2_pin, LOW);
    digitalWrite(XSHUT3_pin, LOW);
@@ -185,10 +182,12 @@ void loop()
       status = sensor_vl53lx3_sat.VL53LX_GetMultiRangingData(pMultiRangingData);
       no_of_object_found=pMultiRangingData->NumberOfObjectsFound;
 
+      // if statement that runs when sensor is no longer detecting objects. not_repeating variable stops the "if" function from running multiple times while sensor continuously detects no objects
       if(times_without_status_0 == 10 && not_repeating) {
         not_repeating = 0;
         int num_of_zeros_out = 0;
-         //Check if people walked though the door
+        
+         // Determine whether to increment count if sensor has atleast 6 velocity readings
          for(int i=0;i<len;i++){
           if(arrNumbers[i] == 0){
             num_of_zeros_out++;
@@ -202,7 +201,7 @@ void loop()
          SerialPort.print(count);
         }
         
-
+        // Sets moving average to zero while sensor does not detect objects
         for(int i=0;i<len;i++){
           newAvg = movingAvg(arrNumbers, &sum, pos, len, 0);
           pos++;
@@ -210,40 +209,35 @@ void loop()
             pos = 0;
           }
         }
-      }
+      }// end of if statment
         
-      for(j=0;j<1;j++)
+      for(j=0;j<1;j++) // code inside this for loop only runs when sensor gets a reading of status zero
       {
          if(j!=0)SerialPort.print("\r\n                               ");
-         if(pMultiRangingData->RangeData[j].RangeStatus == 0 /*|| pMultiRangingData->RangeData[j].RangeStatus == 7*/){
-//         SerialPort.print("status=");
-//         SerialPort.print(pMultiRangingData->RangeData[j].RangeStatus);
-//         SerialPort.print(", D=");
-//         SerialPort.print(pMultiRangingData->RangeData[j].RangeMilliMeter);
-//         SerialPort.print("mm");
+         if(pMultiRangingData->RangeData[j].RangeStatus == 0){
 
-       
-        // Calculate velocity
+         // Calculate velocity
          previousTime = curTime;
          curTime = millis();
          float interval = curTime - previousTime;
          curPosition = pMultiRangingData->RangeData[j].RangeMilliMeter;
-         
+
+         // determine wether to increment count if sensor gathered atleast 4 velocity readings
          int num_of_zeros = 0;
-         //Check if people walked though the door
          for(int i=0;i<len;i++){
           if(arrNumbers[i] == 0){
             num_of_zeros++;
           }
-        }
-        if(num_of_zeros < 7){
-         count = count + people(curPosition, prevPosition, newAvg, no_object_detected);
-         update_button_count();//update shared variable x (shared with WiFi task)
-         update_non_vol_count();//updates nonvolatile count
-        }
+         }
+         if(num_of_zeros < 7){
+           count = count + people(curPosition, prevPosition, newAvg, no_object_detected);
+           update_button_count();//update shared variable x (shared with WiFi task)
+           update_non_vol_count();//updates nonvolatile count
+         }
          SerialPort.print(count);
-
          not_repeating = 1;
+
+         // Find average velocity with new velocity added to an array
          velocity = (curPosition - prevPosition)/ interval;
          if(isinf(velocity)){
           velocity = 0;
@@ -254,7 +248,7 @@ void loop()
          if (pos >= len){
           pos = 0;
          }
-         
+
          times_without_status_0 = 0;
          SerialPort.println("");
          }// end of if statement that only runs when object with status 0 is detected 
@@ -275,7 +269,7 @@ void loop()
 
 
 
-// FUNCTION LIST----------------------------------------------------------------------
+// FUNCTION LIST----------------------------------------------------------------------------------------
 //
 // Average velocity function
 
@@ -291,16 +285,6 @@ float movingAvg(float *ptrArrNumbers, float *ptrSum, int pos, float len, float n
   return *ptrSum / len;
 }
 
-// Function to return true if sensor is no longer seeing objects based on
-// last 5 readings for no_of_object_found
-
-bool detect_no_objects(int *ptrArrNumbers, int *ptrSum, int pos, int len, int nextNum)
-{
-  //Subtract the oldest number from the prev sum, add the new number
-  *ptrSum = *ptrSum - ptrArrNumbers[pos] + nextNum;
-  ptrArrNumbers[pos] = nextNum;
-  return (*ptrSum < 1) ;
-}
 
 // People counting function: determines when to consider if a person walked through the door based in sensor tracking a new object
 
