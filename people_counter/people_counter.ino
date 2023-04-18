@@ -91,7 +91,8 @@ Preferences nonVol;//used to store the count in nonvolatile memory
 #endif
 #define LedPin LED_BUILTIN
 
-#define twoPersonWidth 300
+#define twoPersonWidth 200
+#define maxCycles 150
 
 // Components.
 VL53LX sensor_vl53lx_sat(&DEV_I2C, XSHUT1_pin);
@@ -101,6 +102,8 @@ VL53LX sensor_vl53lx3_sat(&DEV_I2C, XSHUT3_pin);
 /* Setup ---------------------------------------------------------------------*/
 float curTime = 0;
 float previousTime = 0;
+float cur_cycle_time = 0;
+float prev_cycle_time = 0;
 float velocity = 0;
 double curPosition = 0;
 double prevPosition = 0;
@@ -114,6 +117,7 @@ float arrNumbers[10] = {0}; // Array to hold velocity readings for moving averag
 int arrChange[10] = {0};
 int prevCount = 0;
 int mostRecentChange = 0;
+int prevChange = 0;
 int cycles = 0;
 
 // for detecting people in doorway
@@ -180,6 +184,12 @@ void setup()
 
 void loop()
 {
+  cur_cycle_time = millis();
+  SerialPort.print(cur_cycle_time - prev_cycle_time);
+  SerialPort.println(" ms");
+
+  prev_cycle_time = cur_cycle_time;
+
    VL53LX_MultiRangingData_t MultiRangingData;
    VL53LX_MultiRangingData_t *pMultiRangingData = &MultiRangingData;
 
@@ -290,13 +300,15 @@ void loop()
       }
       arrChange[0] = count - prevCount;
       */
-      if(count - prevCount != 0 || cycles > 10000) {
-        if(cycles > 10000) {
+      if(count - prevCount != 0 || cycles > maxCycles) {
+        if(cycles > maxCycles) {
           cycles = 0;
         }
         if(mostRecentChange == 2) {
             if(count - prevCount == -1) {
               count--;
+              update_button_count();//update shared variable x (shared with WiFi task)
+              update_non_vol_count();//updates nonvolatile count
               mostRecentChange = -2;
             }
             else {
@@ -341,7 +353,10 @@ void loop()
       if(peopleInDoorway == 2) {
         if(mostRecentChange == 1) {
           count++;
+          update_button_count();//update shared variable x (shared with WiFi task)
+          update_non_vol_count();//updates nonvolatile count
           mostRecentChange = 2;
+          cycles = 0;
           amountExiting = 0;
         }
         else if(mostRecentChange == 0) {
@@ -351,8 +366,13 @@ void loop()
 
       if(mostRecentChange == -1) {
         if(amountExiting == 2) {
-          count--;
+          if(count >= 1) {          
+            count--;
+            update_button_count();//update shared variable x (shared with WiFi task)
+            update_non_vol_count();//updates nonvolatile count
+          }
           mostRecentChange = -2;
+          cycles = 0;
           amountExiting = 0;
         }
       }
