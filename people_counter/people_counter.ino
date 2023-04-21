@@ -184,9 +184,9 @@ void setup()
 
 void loop()
 {
-  cur_cycle_time = millis();
-  SerialPort.print(cur_cycle_time - prev_cycle_time);
-  SerialPort.println(" ms");
+//  cur_cycle_time = millis();
+//  SerialPort.print(cur_cycle_time - prev_cycle_time);
+//  SerialPort.println(" ms");
 
   prev_cycle_time = cur_cycle_time;
 
@@ -283,17 +283,23 @@ void loop()
          // SerialPort.println("");
          }// end of if statement that only runs when object with status 0 is detected 
       }// end of for loop
+
+
       
-      if(count - prevCount == 2) {              // must of incremented count twice (through outside loop and inside loop)
-        count--;
-        update_button_count();//update shared variable x (shared with WiFi task)
-        update_non_vol_count();//updates nonvolatile count
-      }
-      else if(count - prevCount == -2) {        // must of decremented count twice (through outside loop and inside loop)
-        count++;
-        update_button_count();//update shared variable x (shared with WiFi task)
-        update_non_vol_count();//updates nonvolatile count
-      }
+      
+//      if(count - prevCount == 2) {              // must of incremented count twice (through outside loop and inside loop)
+//        count--;
+//        update_button_count();//update shared variable x (shared with WiFi task)
+//        update_non_vol_count();//updates nonvolatile count
+//      }
+//      else if(count - prevCount == -2) {        // must of decremented count twice (through outside loop and inside loop)
+//        count++;
+//        update_button_count();//update shared variable x (shared with WiFi task)
+//        update_non_vol_count();//updates nonvolatile count
+//      }
+
+
+      
       /*
       for(int i = 0; i < 10; i++) {
         arrChange[i + 1] = arrChange[i];
@@ -328,10 +334,11 @@ void loop()
 
       // At this point change status to side sensors
       status = sensor_vl53lx2_sat.VL53LX_GetMultiRangingData(pMultiRangingData);
-
-      dist2 = pMultiRangingData->RangeData[0].RangeMilliMeter;
+      
       status2 = pMultiRangingData->RangeData[0].RangeStatus;
-
+      if(status2 == 0){
+        dist2 = pMultiRangingData->RangeData[0].RangeMilliMeter;
+      }
       if (status==0)
       {
          status = sensor_vl53lx2_sat.VL53LX_ClearInterruptAndStartMeasurement();
@@ -339,8 +346,15 @@ void loop()
 
       status = sensor_vl53lx3_sat.VL53LX_GetMultiRangingData(pMultiRangingData);
 
-      dist3 = pMultiRangingData->RangeData[0].RangeMilliMeter;
+      
       status3 = pMultiRangingData->RangeData[0].RangeStatus;
+      if(status3 == 0){
+        dist3 = pMultiRangingData->RangeData[0].RangeMilliMeter;
+      }
+//      SerialPort.print(dist3);
+//      SerialPort.println(": Sensor 3");
+//      SerialPort.print(dist2);
+//      SerialPort.println(": Sensor 2");
 
       if (status==0)
       {
@@ -348,7 +362,8 @@ void loop()
       }      
 
       peopleInDoorway = amountPeople(dist2, dist3, status2, status3);
-
+//      SerialPort.print(peopleInDoorway);
+//      SerialPort.println(" people");
       // if someone entered/exited change the count depending on whether two or one person entered
       if(peopleInDoorway == 2) {
         if(mostRecentChange == 1) {
@@ -471,7 +486,10 @@ int people(double currentPosition, double previousPosition, float averageVel, bo
 
 int amountPeople(int dist1, int dist2, int status1, int status2) {
   float width = dist1 + dist2;
-  if(status1 == 0 && status2 == 0) {
+//  SerialPort.print(width);
+//  SerialPort.println(" width");
+//  SerialPort.print(status1);
+//  SerialPort.println(status2);
     if(width < twoPersonWidth) {
       return 2;
     }
@@ -481,8 +499,6 @@ int amountPeople(int dist1, int dist2, int status1, int status2) {
     else {
       return 0;
     }
-  }
-  return 0;
 }
 
 int updatedCount(int *ptrArrChange) {
